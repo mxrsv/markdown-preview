@@ -5,6 +5,16 @@ All notable changes to "Markdown Preview Lexical (Kyan)" will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2024-12-09
+
+### Fixed
+
+- Fixed missing `styles.css` in build output by adding copy step to build scripts
+
+### Added
+
+- Extension icon for VS Code marketplace visibility
+
 ## [1.0.0] - 2024-12-09
 
 ### Added
