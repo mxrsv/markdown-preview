@@ -98,8 +98,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run build",
-    "build": "webpack --mode production",
-    "build:dev": "webpack --mode development",
+    "build": "webpack --mode production && cp src/webview/styles.css out/webview/styles.css",
+    "build:dev": "webpack --mode development && cp src/webview/styles.css out/webview/styles.css",
     "watch": "webpack --mode development --watch",
     "package": "vsce package"
   },
