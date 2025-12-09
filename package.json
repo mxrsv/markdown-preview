@@ -1,0 +1,129 @@
+{
+  "name": "markdown-preview-lexical",
+  "displayName": "Markdown Preview Lexical (Kyan)",
+  "description": "Preview Markdown files using Lexical editor in readonly mode",
+  "version": "1.0.0",
+  "publisher": "kyantran",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kyantran/markdown-preview-lexical"
+  },
+  "bugs": {
+    "url": "https://github.com/kyantran/markdown-preview-lexical/issues"
+  },
+  "homepage": "https://github.com/kyantran/markdown-preview-lexical#readme",
+  "keywords": [
+    "markdown",
+    "preview",
+    "lexical",
+    "editor",
+    "readonly",
+    "viewer"
+  ],
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "markdown-lexical-preview.openPreview",
+        "title": "Open Markdown Preview Lexical (Kyan)",
+        "icon": "$(preview)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "when": "resourceLangId == markdown",
+          "command": "markdown-lexical-preview.openPreview",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "markdown-lexical-preview.openPreview",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "resourceLangId == markdown"
+      }
+    ],
+    "configuration": {
+      "title": "Markdown Preview Lexical (Kyan)",
+      "properties": {
+        "markdownLexicalPreview.autoPreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically open preview when opening a Markdown file"
+        },
+        "markdownLexicalPreview.prompts.executeInstructions": {
+          "type": "string",
+          "default": "Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself. To-do's from the plan have already been created. Do not create them again. Mark them as in_progress as you work, starting with the first one. Don't stop until you have completed all the to-dos.",
+          "description": "Instructions for Execute Plan button. File reference (@filepath) is automatically added.",
+          "editPresentation": "multilineText"
+        },
+        "markdownLexicalPreview.prompts.reviewInstructions": {
+          "type": "string",
+          "default": "Review this document thoroughly.\n\nDo NOT edit the file.\nDo NOT rewrite the entire content.\n\nYour tasks:\n- Assess structure, clarity, and correctness\n- Identify unclear, incorrect, or redundant parts\n- Suggest concrete improvements\n- Point out formatting or structural issues where relevant\n\nProvide feedback and suggestions only.\nReturn the result in a clear, structured format.",
+          "description": "Instructions for Review action. File reference (@filepath) is automatically added.",
+          "editPresentation": "multilineText"
+        }
+      }
+    },
+    "customEditors": [
+      {
+        "viewType": "markdownLexicalPreview.editor",
+        "displayName": "Markdown Preview Lexical (Kyan)",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          }
+        ],
+        "priority": "option"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
+    "watch": "webpack --mode development --watch",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.1",
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "terser-webpack-plugin": "^5.3.15",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@lexical/code": "^0.17.0",
+    "@lexical/headless": "^0.17.0",
+    "@lexical/html": "^0.17.0",
+    "@lexical/link": "^0.17.0",
+    "@lexical/list": "^0.17.0",
+    "@lexical/markdown": "^0.17.0",
+    "@lexical/react": "^0.17.0",
+    "@lexical/rich-text": "^0.17.0",
+    "@lexical/table": "^0.17.1",
+    "lexical": "^0.17.0",
+    "markdown-it": "^14.1.0"
+  }
+}

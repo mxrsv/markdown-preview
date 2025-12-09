@@ -1,0 +1,525 @@
+/* Webview Styles for Markdown Preview Lexical */
+
+:root {
+  --bg-color: var(--vscode-editor-background);
+  --text-color: var(--vscode-editor-foreground);
+  --link-color: var(--vscode-textLink-foreground);
+  --code-bg: var(--vscode-textBlockQuote-background);
+  --border-color: var(--vscode-panel-border);
+  --button-bg: var(--vscode-button-background, #0e639c);
+  --button-fg: var(--vscode-button-foreground, #ffffff);
+  --button-hover-bg: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-size: var(--vscode-font-size, 14px);
+  line-height: 1.6;
+  padding: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+  color: var(--text-color);
+  background-color: var(--bg-color);
+}
+
+/* ========================================
+   Toolbar
+   ======================================== */
+
+#toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 0;
+  margin-bottom: 16px;
+  background-color: var(--bg-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--button-fg);
+  background-color: var(--button-bg);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.toolbar-btn:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.toolbar-btn:active {
+  transform: scale(0.98);
+}
+
+.toolbar-btn .btn-icon {
+  font-size: 10px;
+}
+
+.toolbar-btn .btn-text {
+  white-space: nowrap;
+}
+
+.toolbar-btn.secondary {
+  background-color: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #cccccc);
+}
+
+.toolbar-btn.secondary:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+/* Select dropdown */
+.toolbar-select-wrapper {
+  position: relative;
+}
+
+.toolbar-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: auto;
+  min-width: 0;
+  padding: 6px 24px 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--vscode-button-secondaryForeground, #cccccc);
+  background-color: var(--vscode-button-secondaryBackground, #3a3d41);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%23cccccc' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+}
+
+.toolbar-select:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+.toolbar-select:focus {
+  outline: 1px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: -1px;
+}
+
+.toolbar-select option {
+  background-color: var(--vscode-dropdown-background, #3c3c3c);
+  color: var(--vscode-dropdown-foreground, #cccccc);
+  padding: 4px 8px;
+}
+
+#editor-root {
+  min-height: 100px;
+  outline: none;
+}
+
+/* ========================================
+   Lexical Editor - Typography
+   ======================================== */
+
+#editor-root h1,
+#editor-root h2,
+#editor-root h3,
+#editor-root h4,
+#editor-root h5,
+#editor-root h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+#editor-root h1 {
+  font-size: 2em;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.3em;
+}
+
+#editor-root h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.3em;
+}
+
+#editor-root h3 { font-size: 1.25em; }
+#editor-root h4 { font-size: 1em; }
+
+#editor-root p {
+  margin: 0 0 16px 0;
+}
+
+/* ========================================
+   Links
+   ======================================== */
+
+#editor-root a,
+.editor-link {
+  color: var(--link-color);
+  text-decoration: none;
+}
+
+#editor-root a:hover,
+.editor-link:hover {
+  text-decoration: underline;
+}
+
+/* ========================================
+   Inline Code
+   ======================================== */
+
+#editor-root code,
+.editor-text-code {
+  font-family: var(--vscode-editor-font-family, 'Fira Code', Consolas, monospace);
+  background-color: var(--code-bg);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+#editor-root pre {
+  background-color: var(--code-bg);
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+#editor-root pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.9em;
+}
+
+/* ========================================
+   Blockquotes & Lists
+   ======================================== */
+
+#editor-root blockquote {
+  margin: 0 0 16px 0;
+  padding: 0 16px;
+  border-left: 4px solid var(--border-color);
+  color: var(--vscode-descriptionForeground);
+}
+
+#editor-root ul,
+#editor-root ol {
+  margin: 0 0 16px 0;
+  padding-left: 1.2em;
+}
+
+#editor-root li {
+  margin-bottom: 4px;
+}
+
+#editor-root li p {
+  margin: 0;
+}
+
+/* ========================================
+   Task List Checkboxes
+   ======================================== */
+
+/* Hide bullet for task items */
+#editor-root li.task-item {
+  list-style: none;
+  margin-left: -1.2em;
+  padding-left: 0;
+}
+
+/* Square checkbox */
+.task-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--vscode-checkbox-border, #6b6b6b);
+  border-radius: 3px;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  vertical-align: middle;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.task-checkbox:hover {
+  border-color: var(--vscode-focusBorder, #007acc);
+  background-color: rgba(0, 122, 204, 0.1);
+}
+
+/* Checked state */
+.task-checkbox.checked {
+  background-color: var(--vscode-checkbox-background, #007acc);
+  border-color: var(--vscode-checkbox-background, #007acc);
+}
+
+.task-checkbox.checked::after {
+  content: '✓';
+  color: var(--vscode-checkbox-foreground, #fff);
+  font-size: 10px;
+  font-weight: bold;
+}
+
+/* Strikethrough for checked items */
+#editor-root li.task-checked {
+  color: var(--vscode-disabledForeground, #6b6b6b);
+}
+
+#editor-root hr {
+  display: none;
+}
+
+#editor-root img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ========================================
+   Tables
+   ======================================== */
+
+.md-table {
+  width: auto;
+  max-width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.md-table-cell,
+.md-table-cell-header {
+  border: 1px solid var(--border-color, #444);
+  padding: 4px 10px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.md-table-cell-header {
+  background-color: var(--vscode-editor-selectionBackground, rgba(255, 255, 255, 0.1));
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.md-table-row:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.md-table-row:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Remove paragraph margin inside table cells */
+.md-table-cell p,
+.md-table-cell-header p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Light theme table */
+body.vscode-light .md-table-cell,
+body.vscode-light .md-table-cell-header {
+  border-color: #ddd;
+}
+
+body.vscode-light .md-table-cell-header {
+  background-color: #f5f5f5;
+}
+
+body.vscode-light .md-table-row:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+body.vscode-light .md-table-row:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* ========================================
+   Lexical Text Formatting
+   ======================================== */
+
+.editor-text-bold { font-weight: bold; }
+.editor-text-italic { font-style: italic; }
+.editor-text-underline { text-decoration: underline; }
+.editor-text-strikethrough { text-decoration: line-through; }
+
+/* ========================================
+   Code Block Container
+   ======================================== */
+
+.editor-code-block {
+  display: block;
+  position: relative;
+  background-color: var(--vscode-textCodeBlock-background, rgba(0, 0, 0, 0.2));
+  border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  font-family: var(--vscode-editor-font-family, 'JetBrains Mono', 'Fira Code', Consolas, monospace);
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 12px 16px;
+  margin: 16px 0;
+  overflow-x: auto;
+  tab-size: 2;
+  white-space: pre;
+  word-break: normal;
+  color: #9cdcfe;
+}
+
+/* Ensure code lines don't have individual backgrounds */
+.editor-code-block * {
+  background: transparent !important;
+}
+
+
+/* ========================================
+   Code Highlight Tokens - Enhanced Colors
+   ======================================== */
+
+/* Comments - Muted green, italic */
+.code-highlight-comment,
+.code-highlight-prolog,
+.code-highlight-doctype,
+.code-highlight-cdata {
+  color: #6A9955;
+  font-style: italic;
+}
+
+/* Punctuation - Subtle gray */
+.code-highlight-punctuation {
+  color: #808080;
+}
+
+/* Keywords - Blue (import, export, const, let, if, else, return) */
+.code-highlight-keyword,
+.code-highlight-atrule {
+  color: #C586C0;
+}
+
+/* Strings - Orange/Brown */
+.code-highlight-string,
+.code-highlight-char,
+.code-highlight-selector {
+  color: #CE9178;
+}
+
+/* Numbers & Booleans - Light green */
+.code-highlight-number,
+.code-highlight-boolean,
+.code-highlight-constant,
+.code-highlight-symbol {
+  color: #B5CEA8;
+}
+
+/* Functions - Yellow */
+.code-highlight-function {
+  color: #DCDCAA;
+}
+
+/* Classes & Types - Cyan/Teal */
+.code-highlight-class,
+.code-highlight-class-name {
+  color: #4EC9B0;
+}
+
+/* Variables - Light blue */
+.code-highlight-variable {
+  color: #9CDCFE;
+}
+
+/* Properties & Attributes - Light blue */
+.code-highlight-property,
+.code-highlight-attr {
+  color: #9CDCFE;
+}
+
+/* Operators - Light gray */
+.code-highlight-operator {
+  color: #D4D4D4;
+}
+
+/* Built-ins & Tags - Blue */
+.code-highlight-builtin,
+.code-highlight-tag {
+  color: #569CD6;
+}
+
+/* Regex - Red */
+.code-highlight-regex {
+  color: #D16969;
+}
+
+/* Important - Orange */
+.code-highlight-important {
+  color: #D7BA7D;
+  font-weight: bold;
+}
+
+/* URLs & Entities - Bright blue, underline */
+.code-highlight-url,
+.code-highlight-entity {
+  color: #3794FF;
+  text-decoration: underline;
+}
+
+/* Namespace - Teal */
+.code-highlight-namespace {
+  color: #4EC9B0;
+}
+
+/* Inserted - Green (Git diff) */
+.code-highlight-inserted {
+  color: #89D185;
+}
+
+/* Deleted - Red (Git diff) */
+.code-highlight-deleted {
+  color: #F14C4C;
+  text-decoration: line-through;
+}
+
+/* ========================================
+   Light Theme Overrides
+   ======================================== */
+
+@media (prefers-color-scheme: light) {
+  .editor-code-block {
+    background-color: var(--vscode-textCodeBlock-background, rgba(0, 0, 0, 0.05));
+    border-color: var(--vscode-widget-border, rgba(0, 0, 0, 0.1));
+  }
+}
+
+/* VSCode Light Theme Detection */
+body.vscode-light .editor-code-block {
+  background-color: #f3f3f3;
+  border-color: #e0e0e0;
+}
+
+body.vscode-light .code-highlight-comment { color: #008000; }
+body.vscode-light .code-highlight-keyword { color: #0000FF; }
+body.vscode-light .code-highlight-string { color: #A31515; }
+body.vscode-light .code-highlight-number { color: #098658; }
+body.vscode-light .code-highlight-function { color: #795E26; }
+body.vscode-light .code-highlight-class-name { color: #267F99; }
+body.vscode-light .code-highlight-variable { color: #001080; }
+body.vscode-light .code-highlight-property { color: #001080; }
+body.vscode-light .code-highlight-builtin { color: #0000FF; }
+body.vscode-light .code-highlight-tag { color: #800000; }
+body.vscode-light .code-highlight-punctuation { color: #000000; }
+body.vscode-light .code-highlight-operator { color: #000000; }
