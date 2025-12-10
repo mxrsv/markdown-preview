@@ -34,6 +34,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
         webviewPanel.webview.html = this.getWebviewContent(webviewPanel.webview, relativePath);
 
+        // Send content after a short delay (fallback)
+        setTimeout(() => {
+            this.sendContent(webviewPanel.webview, document.getText());
+        }, 100);
+
         // Handle messages from webview
         const messageHandler = webviewPanel.webview.onDidReceiveMessage((message) => {
             switch (message.type) {
@@ -58,14 +63,28 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
             }
         });
 
-        // Update webview when document changes
+        // Debounce timer for document changes
+        let debounceTimer: NodeJS.Timeout | undefined;
+
+        // Update webview when document changes (with debounce)
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
             if (e.document.uri.toString() === document.uri.toString()) {
-                this.sendContent(webviewPanel.webview, document.getText());
+                // Clear existing timer
+                if (debounceTimer) {
+                    clearTimeout(debounceTimer);
+                }
+
+                // Debounce updates to prevent flooding
+                debounceTimer = setTimeout(() => {
+                    this.sendContent(webviewPanel.webview, document.getText());
+                }, 150); // 150ms debounce
             }
         });
 
         webviewPanel.onDidDispose(() => {
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+            }
             changeDocumentSubscription.dispose();
             messageHandler.dispose();
         });
@@ -156,7 +175,21 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
                 return;
             }
 
-            // Open the document
+            // Check if it's a markdown file - open directly with custom editor
+            const isMarkdown = fullPath.fsPath.toLowerCase().endsWith('.md') ||
+                               fullPath.fsPath.toLowerCase().endsWith('.markdown');
+
+            if (isMarkdown) {
+                // Open directly with custom editor - no text editor involved
+                await vscode.commands.executeCommand(
+                    'vscode.openWith',
+                    fullPath,
+                    MarkdownEditorProvider.viewType
+                );
+                return;
+            }
+
+            // For non-markdown files, open normally
             const doc = await vscode.workspace.openTextDocument(fullPath);
             const editor = await vscode.window.showTextDocument(doc, {
                 viewColumn: vscode.ViewColumn.One,

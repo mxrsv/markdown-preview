@@ -20,6 +20,59 @@ declare function acquireVsCodeApi(): {
   setState(state: unknown): void;
 };
 
+const vscode = acquireVsCodeApi();
+
+// Message queue for messages received before DOM is ready
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pendingMessages: any[] = [];
+let isInitialized = false;
+
+// Debounce state for message processing
+let updateDebounceTimer: number | undefined;
+let pendingContent: string | null = null;
+
+// Set up message listener IMMEDIATELY to catch early messages
+window.addEventListener('message', (event) => {
+  const message = event.data;
+
+  if (!isInitialized) {
+    pendingMessages.push(message);
+    return;
+  }
+
+  processMessage(message);
+});
+
+// Process a single message
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function processMessage(message: any) {
+  switch (message.type) {
+    case 'update':
+      // Debounce updates on webview side as well (belt and suspenders)
+      pendingContent = message.content;
+      if (updateDebounceTimer) {
+        window.clearTimeout(updateDebounceTimer);
+      }
+      updateDebounceTimer = window.setTimeout(() => {
+        if (pendingContent !== null) {
+          updateContent(pendingContent);
+          pendingContent = null;
+        }
+      }, 50); // 50ms debounce on webview side
+      break;
+  }
+}
+
+// Process any queued messages
+function processQueuedMessages() {
+  if (pendingMessages.length > 0) {
+    while (pendingMessages.length > 0) {
+      const msg = pendingMessages.shift();
+      processMessage(msg);
+    }
+  }
+}
+
 // Custom HorizontalRuleNode without React dependency
 type SerializedHorizontalRuleNode = Spread<{}, SerializedLexicalNode>;
 
@@ -63,8 +116,6 @@ class HorizontalRuleNode extends DecoratorNode<null> {
 function $createHorizontalRuleNode(): HorizontalRuleNode {
   return new HorizontalRuleNode();
 }
-
-const vscode = acquireVsCodeApi();
 
 // Lexical theme with VSCode CSS variable mapping
 const theme = {
@@ -198,8 +249,16 @@ function setupLinkClickHandler(rootElement: HTMLElement) {
 function initEditor() {
   const rootElement = document.getElementById('editor-root');
   if (!rootElement) {
-    console.error('Root element not found');
+    console.error('[Webview] Root element not found');
     return;
+  }
+
+  // Check if editor already exists and is connected to this root
+  if (editor) {
+    const currentRoot = editor.getRootElement();
+    if (currentRoot === rootElement) {
+      return;
+    }
   }
 
   editor = createEditor(editorConfig);
@@ -407,84 +466,89 @@ function extractTableFromContent(content: string): { tableLines: string[]; befor
 
 // Find and replace table-like paragraphs in the tree
 function findAndReplaceTableParagraphs(): void {
-  const root = $getRoot();
-  const children = root.getChildren();
+  const MAX_ITERATIONS = 100; // Prevent infinite loops
+  let iterations = 0;
+  let foundTable = true;
 
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i];
-    const content = child.getTextContent();
-    const nodeType = child.getType();
+  while (foundTable && iterations < MAX_ITERATIONS) {
+    foundTable = false;
+    iterations++;
 
-    console.log('[Table Debug] Checking node:', nodeType, '| lines:', content.split('\n').length);
+    const root = $getRoot();
+    const children = root.getChildren();
 
-    // Case 1: Single paragraph contains entire table (merged lines)
-    if (nodeType === 'paragraph') {
-      const extracted = extractTableFromContent(content);
-      if (extracted) {
-        console.log('[Table Debug] Found table in single node:', extracted.tableLines.length, 'rows');
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      const content = child.getTextContent();
 
-        const tableNode = createLexicalTable(extracted.tableLines);
-        if (tableNode) {
-          // If there's text before table, create paragraph for it
-          if (extracted.beforeText) {
-            const beforePara = $createParagraphNode();
-            beforePara.append($createTextNode(extracted.beforeText));
-            child.insertBefore(beforePara);
-          }
-
-          // Replace with table
-          child.replace(tableNode);
-
-          // If there's text after table, create paragraph for it
-          if (extracted.afterText) {
-            const afterPara = $createParagraphNode();
-            afterPara.append($createTextNode(extracted.afterText));
-            tableNode.insertAfter(afterPara);
-          }
-
-          // Restart since tree changed
-          findAndReplaceTableParagraphs();
-          return;
-        }
-      }
-
-      // Case 2: Table spans multiple consecutive paragraphs
-      if (isTableRowContent(content)) {
-        const tableRows: string[] = [content];
-        let j = i + 1;
-
-        while (j < children.length) {
-          const nextChild = children[j];
-          const nextContent = nextChild.getTextContent();
-
-          if (nextChild.getType() === 'paragraph' && isTableRowContent(nextContent)) {
-            tableRows.push(nextContent);
-            j++;
-          } else {
-            break;
-          }
-        }
-
-        if (tableRows.length >= 2 && isTableSeparator(tableRows[1])) {
-          console.log('[Table Debug] Found table across paragraphs:', tableRows.length, 'rows');
-
-          const tableNode = createLexicalTable(tableRows);
+      // Case 1: Single paragraph contains entire table (merged lines)
+      if (child.getType() === 'paragraph') {
+        const extracted = extractTableFromContent(content);
+        if (extracted) {
+          const tableNode = createLexicalTable(extracted.tableLines);
           if (tableNode) {
-            child.replace(tableNode);
-
-            // Remove remaining table paragraphs
-            for (let k = i + 1; k < j; k++) {
-              if (children[k] && children[k].isAttached()) {
-                children[k].remove();
-              }
+            // If there's text before table, create paragraph for it
+            if (extracted.beforeText) {
+              const beforePara = $createParagraphNode();
+              beforePara.append($createTextNode(extracted.beforeText));
+              child.insertBefore(beforePara);
             }
 
-            findAndReplaceTableParagraphs();
-            return;
+            // Replace with table
+            child.replace(tableNode);
+
+            // If there's text after table, create paragraph for it
+            if (extracted.afterText) {
+              const afterPara = $createParagraphNode();
+              afterPara.append($createTextNode(extracted.afterText));
+              tableNode.insertAfter(afterPara);
+            }
+
+            foundTable = true;
+            break; // Restart from beginning
+          }
+        }
+
+        // Case 2: Table spans multiple consecutive paragraphs
+        if (isTableRowContent(content)) {
+          const tableRows: string[] = [content];
+          let j = i + 1;
+
+          while (j < children.length) {
+            const nextChild = children[j];
+            const nextContent = nextChild.getTextContent();
+
+            if (nextChild.getType() === 'paragraph' && isTableRowContent(nextContent)) {
+              tableRows.push(nextContent);
+              j++;
+            } else {
+              break;
+            }
+          }
+
+          if (tableRows.length >= 2 && isTableSeparator(tableRows[1])) {
+            const tableNode = createLexicalTable(tableRows);
+            if (tableNode) {
+              child.replace(tableNode);
+
+              // Remove remaining table paragraphs
+              for (let k = i + 1; k < j; k++) {
+                if (children[k] && children[k].isAttached()) {
+                  children[k].remove();
+                }
+              }
+
+              foundTable = true;
+              break; // Restart from beginning
+            }
           }
         }
       }
     }
+  }
+
+  if (iterations >= MAX_ITERATIONS) {
+    console.warn('[Webview] Table processing hit max iterations, some tables may not be rendered');
   }
 }
 
@@ -496,20 +560,15 @@ function processMarkdownWithTables(markdown: string): void {
   // Remove horizontal rules
   const cleanedMarkdown = preprocessMarkdown(markdown);
 
-  console.log('[Table Debug] Processing markdown...');
-
   if (cleanedMarkdown.trim()) {
     try {
       // Convert markdown - tables will become paragraphs with pipe characters
       $convertFromMarkdownString(cleanedMarkdown, TRANSFORMERS);
 
-      console.log('[Table Debug] After markdown convert, root children:', root.getChildrenSize());
-
       // Find and replace table paragraphs
       findAndReplaceTableParagraphs();
 
-    } catch (e) {
-      console.error('[Table Debug] Markdown conversion error:', e);
+    } catch {
       const paragraph = $createParagraphNode();
       paragraph.append($createTextNode(cleanedMarkdown));
       root.append(paragraph);
@@ -524,28 +583,85 @@ function processMarkdownWithTables(markdown: string): void {
   }
 }
 
+// Content hash tracking to prevent redundant updates
+let lastContentHash = '';
+
+// Performance threshold for very large files
+const VERY_LARGE_FILE_THRESHOLD = 100000; // chars
+
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return hash.toString();
+}
+
 function updateContent(markdown: string) {
+  // Check if content has actually changed
+  const contentHash = simpleHash(markdown);
+  if (contentHash === lastContentHash) {
+    return;
+  }
+  lastContentHash = contentHash;
+
   if (!editor) {
     initEditor();
   }
 
   if (editor) {
-    editor.update(() => {
-      processMarkdownWithTables(markdown);
-    });
+    const contentLength = markdown.length;
+
+    // Warn for very large files
+    if (contentLength > VERY_LARGE_FILE_THRESHOLD) {
+      console.warn(`[Webview] Very large file (${contentLength} chars), rendering may fail`);
+    }
+
+    try {
+      const startTime = performance.now();
+
+      editor.update(() => {
+        try {
+          processMarkdownWithTables(markdown);
+
+          // Warn if rendering took too long
+          const endTime = performance.now();
+          const duration = endTime - startTime;
+          if (duration > 1000) {
+            console.warn(`[Webview] Slow render: ${duration.toFixed(2)}ms for ${contentLength} chars`);
+          }
+        } catch (innerError) {
+          console.error('[Webview] Error in processMarkdownWithTables:', innerError);
+
+          // Fallback: show error message
+          const root = $getRoot();
+          root.clear();
+          const errorPara = $createParagraphNode();
+          errorPara.append($createTextNode(
+            `⚠️ Error rendering markdown (${contentLength} chars). File may be too large or contain unsupported syntax.\n\nError: ${innerError}`
+          ));
+          root.append(errorPara);
+        }
+      }, {
+        discrete: true
+      });
+    } catch (error) {
+      console.error('[Webview] Fatal error in updateContent:', error);
+
+      // Show error in UI
+      const rootElement = document.getElementById('editor-root');
+      if (rootElement) {
+        rootElement.innerHTML = `<p style="color: red; padding: 20px;">
+          ⚠️ Failed to render markdown (${contentLength} chars)<br><br>
+          Error: ${error}<br><br>
+          Try splitting the file into smaller documents.
+        </p>`;
+      }
+    }
   }
 }
-
-// Listen for messages from extension
-window.addEventListener('message', (event) => {
-  const message = event.data;
-
-  switch (message.type) {
-    case 'update':
-      updateContent(message.content);
-      break;
-  }
-});
 
 // Setup toolbar button click handlers
 function setupToolbarButtons() {
@@ -605,15 +721,29 @@ function setupToolbarButtons() {
 }
 
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+function initialize() {
+  if (isInitialized) {
+    return;
+  }
+
   initEditor();
   setupToolbarButtons();
+
+  // Mark as initialized BEFORE processing queued messages
+  isInitialized = true;
+
+  // Process any messages that arrived before initialization
+  processQueuedMessages();
+
+  // Send ready message to extension
   vscode.postMessage({ type: 'ready' });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initialize();
 });
 
 // Also try to init immediately in case DOMContentLoaded already fired
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
-  initEditor();
-  setupToolbarButtons();
-  vscode.postMessage({ type: 'ready' });
+  initialize();
 }

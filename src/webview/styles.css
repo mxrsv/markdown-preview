@@ -125,6 +125,8 @@ body {
 #editor-root {
   min-height: 100px;
   outline: none;
+  background-color: transparent;
+  color: var(--text-color);
 }
 
 /* ========================================
