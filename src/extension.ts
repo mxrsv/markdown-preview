@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { MarkdownEditorProvider } from './providers/MarkdownEditorProvider';
 
+// Track URIs that user explicitly wants to edit (bypass auto-redirect)
+export const manualEditUris = new Set<string>();
+
 export function activate(context: vscode.ExtensionContext) {
   // Track URIs being redirected to prevent loops
   const redirectingUris = new Set<string>();
@@ -35,6 +38,12 @@ export function activate(context: vscode.ExtensionContext) {
     if (doc.languageId !== 'markdown') return;
 
     const uriString = doc.uri.toString();
+
+    // Bypass redirect if user explicitly wants to edit (double-click in preview)
+    if (manualEditUris.has(uriString)) {
+      manualEditUris.delete(uriString);
+      return;
+    }
 
     // Prevent redirect loop
     if (redirectingUris.has(uriString)) return;

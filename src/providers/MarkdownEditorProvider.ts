@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import { PromptService } from "../services/PromptService";
+import { manualEditUris } from "../extension";
 
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     public static readonly viewType = "markdownLexicalPreview.editor";
@@ -59,6 +60,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
                     break;
                 case "executeReview":
                     this.executeReviewInTerminal(message.filePath);
+                    break;
+                case "switchToTextEditor":
+                    this.switchToTextEditor(document.uri, webviewPanel);
                     break;
             }
         });
@@ -138,6 +142,27 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         const terminal = vscode.window.createTerminal("Claude Review");
         terminal.show();
         terminal.sendText(command);
+    }
+
+    private async switchToTextEditor(uri: vscode.Uri, panel: vscode.WebviewPanel): Promise<void> {
+        try {
+            // Mark URI to bypass auto-redirect
+            manualEditUris.add(uri.toString());
+
+            // Dispose the preview panel first
+            panel.dispose();
+
+            // Force open with text editor (not custom editor)
+            const doc = await vscode.workspace.openTextDocument(uri);
+            await vscode.window.showTextDocument(doc, {
+                preview: false,
+                viewColumn: vscode.ViewColumn.Active
+            });
+        } catch (error) {
+            // Remove from bypass set if failed
+            manualEditUris.delete(uri.toString());
+            vscode.window.showErrorMessage(`Failed to open editor: ${error}`);
+        }
     }
 
     private async openFile(filePath: string, startLine?: number, endLine?: number): Promise<void> {

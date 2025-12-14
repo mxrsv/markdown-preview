@@ -246,6 +246,19 @@ function setupLinkClickHandler(rootElement: HTMLElement) {
   });
 }
 
+// Double-click to switch to text editor for editing
+function setupDoubleClickToEdit(rootElement: HTMLElement) {
+  rootElement.addEventListener('dblclick', (event) => {
+    const target = event.target as HTMLElement;
+
+    // Skip if double-click on link (already has its own handler)
+    if (target.closest('a')) return;
+
+    // Send message to switch to text editor
+    vscode.postMessage({ type: 'switchToTextEditor' });
+  });
+}
+
 function initEditor() {
   const rootElement = document.getElementById('editor-root');
   if (!rootElement) {
@@ -269,6 +282,9 @@ function initEditor() {
 
   // Setup click handler for file links
   setupLinkClickHandler(rootElement);
+
+  // Setup double-click to edit
+  setupDoubleClickToEdit(rootElement);
 }
 
 // Preprocess markdown: remove horizontal rules and convert checkboxes to Unicode
