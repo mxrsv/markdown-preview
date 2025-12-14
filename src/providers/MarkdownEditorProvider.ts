@@ -149,15 +149,15 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
             // Mark URI to bypass auto-redirect
             manualEditUris.add(uri.toString());
 
-            // Dispose the preview panel first
-            panel.dispose();
-
-            // Force open with text editor (not custom editor)
+            // Force open with text editor FIRST (before disposing panel)
             const doc = await vscode.workspace.openTextDocument(uri);
             await vscode.window.showTextDocument(doc, {
                 preview: false,
                 viewColumn: vscode.ViewColumn.Active
             });
+
+            // Dispose the preview panel AFTER text editor is open
+            panel.dispose();
         } catch (error) {
             // Remove from bypass set if failed
             manualEditUris.delete(uri.toString());
