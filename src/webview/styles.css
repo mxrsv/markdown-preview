@@ -2,9 +2,8 @@
 
 :root {
   --bg-color: var(--vscode-editor-background);
-  --text-color: var(--vscode-editor-foreground);
-  --link-color: var(--vscode-textLink-foreground);
-  --code-bg: var(--vscode-textBlockQuote-background);
+  --text-color: #eaeaea;
+  --link-color: var(--vscode-charts-yellow, #ffd54f);
   --border-color: var(--vscode-panel-border);
   --button-bg: var(--vscode-button-background, #0e639c);
   --button-fg: var(--vscode-button-foreground, #ffffff);
@@ -16,7 +15,14 @@
 }
 
 body {
-  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-family: var(
+    --vscode-font-family,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif
+  );
   font-size: var(--vscode-font-size, 14px);
   line-height: 1.6;
   padding: 20px;
@@ -24,6 +30,11 @@ body {
   margin: 0 auto;
   color: var(--text-color);
   background-color: var(--bg-color);
+}
+
+#editor-root {
+  --size-base: var(--preview-font-size, 14px);
+  font-size: var(--size-base);
 }
 
 /* ========================================
@@ -35,91 +46,180 @@ body {
   top: 0;
   z-index: 100;
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 8px 0;
+  flex-direction: column;
   margin-bottom: 16px;
   background-color: var(--bg-color);
-  border-bottom: 1px solid var(--border-color);
 }
 
-.toolbar-btn {
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 32px;
+  padding: 0 8px;
+}
+
+/* Split-button */
+.tb-split {
+  position: relative;
+  display: inline-flex;
+  height: 22px;
+}
+
+.tb-main,
+.tb-arrow {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  justify-content: center;
+  height: 100%;
   font-size: 12px;
-  font-weight: 500;
-  color: var(--button-fg);
-  background-color: var(--button-bg);
+  line-height: 1;
+  color: #1e1e1e;
+  background-color: #f9e2af;
   border: none;
-  border-radius: 4px;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.2s ease;
 }
 
-.toolbar-btn:hover {
-  background-color: var(--button-hover-bg);
+.tb-main {
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 3px 0 0 3px;
+  border-right: 1px solid rgba(0, 0, 0, 0.25);
+  font-weight: 500;
 }
 
-.toolbar-btn:active {
-  transform: scale(0.98);
-}
-
-.toolbar-btn .btn-icon {
-  font-size: 10px;
-}
-
-.toolbar-btn .btn-text {
+.tb-label {
   white-space: nowrap;
 }
 
-.toolbar-btn.secondary {
-  background-color: var(--vscode-button-secondaryBackground, #3a3d41);
-  color: var(--vscode-button-secondaryForeground, #cccccc);
+.tb-kbd {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  letter-spacing: 1px;
+  opacity: 0.65;
 }
 
-.toolbar-btn.secondary:hover {
-  background-color: var(--vscode-button-secondaryHoverBackground, #45494e);
+.tb-arrow {
+  padding: 0 6px;
+  border-radius: 0 3px 3px 0;
 }
 
-/* Select dropdown */
-.toolbar-select-wrapper {
-  position: relative;
+.tb-main:hover,
+.tb-arrow:hover {
+  background-color: #f3d58a;
 }
 
-.toolbar-select {
-  appearance: none;
-  -webkit-appearance: none;
-  width: auto;
-  min-width: 0;
-  padding: 6px 24px 6px 10px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--vscode-button-secondaryForeground, #cccccc);
-  background-color: var(--vscode-button-secondaryBackground, #3a3d41);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%23cccccc' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
+.tb-main:disabled,
+.tb-main[disabled] {
+  opacity: 0.55;
+  cursor: default;
+  background-color: #f9e2af;
 }
 
-.toolbar-select:hover {
-  background-color: var(--vscode-button-secondaryHoverBackground, #45494e);
-}
-
-.toolbar-select:focus {
+.tb-main:focus-visible,
+.tb-arrow:focus-visible {
   outline: 1px solid var(--vscode-focusBorder, #007acc);
   outline-offset: -1px;
 }
 
-.toolbar-select option {
+/* Dropdown menu */
+.tb-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  right: 0;
+  z-index: 200;
+  margin: 0;
+  padding: 4px 0;
+  min-width: 140px;
+  list-style: none;
   background-color: var(--vscode-dropdown-background, #3c3c3c);
   color: var(--vscode-dropdown-foreground, #cccccc);
-  padding: 4px 8px;
+  border: 1px solid var(--vscode-dropdown-border, #454545);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+}
+
+.tb-menu[hidden] {
+  display: none;
+}
+
+.tb-menu-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tb-menu-item:hover,
+.tb-menu-item:focus {
+  background-color: var(--vscode-list-hoverBackground, #2a2d2e);
+  outline: none;
+}
+
+.tb-menu-item:focus-visible {
+  background-color: var(
+    --vscode-list-activeSelectionBackground,
+    rgba(0, 120, 212, 0.2)
+  );
+}
+
+/* Comment panel */
+#tb-comment-panel {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--border-color);
+  align-items: flex-start;
+}
+
+#tb-comment-panel[hidden] {
+  display: none;
+}
+
+#tb-comment-input {
+  flex: 1;
+  min-height: 56px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--vscode-input-foreground, #cccccc);
+  background-color: var(--vscode-input-background, #3c3c3c);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+  resize: vertical;
+}
+
+#tb-comment-input:focus {
+  outline: 1px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: -1px;
+}
+
+.tb-comment-copy {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #1e1e1e;
+  background-color: #f9e2af;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.2s ease;
+}
+
+.tb-comment-copy:hover {
+  background-color: #f3d58a;
+}
+
+.tb-comment-copy:disabled,
+.tb-comment-copy[disabled] {
+  opacity: 0.55;
+  cursor: default;
+  background-color: #f9e2af;
 }
 
 #editor-root {
@@ -139,29 +239,47 @@ body {
 #editor-root h4,
 #editor-root h5,
 #editor-root h6 {
-  margin-top: 24px;
-  margin-bottom: 16px;
+  margin-top: 40px;
+  margin-bottom: 8px;
   font-weight: 600;
   line-height: 1.25;
 }
 
+#editor-root > :first-child {
+  margin-top: 0;
+}
+
 #editor-root h1 {
-  font-size: 2em;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 0.3em;
+  font-size: calc(var(--size-base) * 2.25);
+  color: #179fff;
 }
-
 #editor-root h2 {
-  font-size: 1.5em;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 0.3em;
+  font-size: calc(var(--size-base) * 1.4);
 }
-
-#editor-root h3 { font-size: 1.25em; }
-#editor-root h4 { font-size: 1em; }
+#editor-root h3 {
+  font-size: calc(var(--size-base) * 1.2);
+  color: #179fff;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+#editor-root h4,
+#editor-root h5,
+#editor-root h6 {
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+#editor-root h4 {
+  font-size: calc(var(--size-base) * 1.15);
+}
+#editor-root h5 {
+  font-size: var(--size-base);
+}
+#editor-root h6 {
+  font-size: calc(var(--size-base) * 0.9);
+}
 
 #editor-root p {
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
 }
 
 /* ========================================
@@ -171,39 +289,51 @@ body {
 #editor-root a,
 .editor-link {
   color: var(--link-color);
-  text-decoration: none;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
 }
 
 #editor-root a:hover,
 .editor-link:hover {
-  text-decoration: underline;
+  text-decoration: underline solid;
 }
 
 /* ========================================
    Inline Code
    ======================================== */
 
-#editor-root code,
+#editor-root code:not(.editor-code-block),
 .editor-text-code {
-  font-family: var(--vscode-editor-font-family, 'Fira Code', Consolas, monospace);
-  background-color: var(--code-bg);
-  padding: 0.2em 0.4em;
+  font-family: var(
+    --vscode-editor-font-family,
+    "Fira Code",
+    Consolas,
+    monospace
+  );
+  color: #eaeaea;
+  background-color: rgba(128, 128, 128, 0.22);
+  padding: 0.1em 0.3em;
   border-radius: 3px;
-  font-size: 0.9em;
+  font-size: calc(var(--size-base) * 0.9);
+}
+
+body.vscode-light #editor-root code:not(.editor-code-block),
+body.vscode-light .editor-text-code {
+  background-color: rgba(0, 0, 0, 0.11);
 }
 
 #editor-root pre {
-  background-color: var(--code-bg);
+  background-color: rgba(128, 128, 128, 0.18);
   padding: 16px;
   border-radius: 6px;
   overflow-x: auto;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 #editor-root pre code {
   background: none;
   padding: 0;
-  font-size: 0.9em;
+  font-size: calc(var(--size-base) * 0.9);
 }
 
 /* ========================================
@@ -211,7 +341,7 @@ body {
    ======================================== */
 
 #editor-root blockquote {
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
   padding: 0 16px;
   border-left: 4px solid var(--border-color);
   color: var(--vscode-descriptionForeground);
@@ -219,8 +349,12 @@ body {
 
 #editor-root ul,
 #editor-root ol {
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
   padding-left: 1.2em;
+}
+
+#editor-root ul {
+  font-size: calc(var(--size-base) * 0.875);
 }
 
 #editor-root li {
@@ -235,55 +369,110 @@ body {
    Task List Checkboxes
    ======================================== */
 
-/* Hide bullet for task items */
-#editor-root li.task-item {
+/* Native Lexical check list: <li role="checkbox" aria-checked="true|false"> */
+#editor-root li[role="checkbox"] {
   list-style: none;
-  margin-left: -1.2em;
-  padding-left: 0;
-}
-
-/* Square checkbox */
-.task-checkbox {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--vscode-checkbox-border, #6b6b6b);
-  border-radius: 3px;
-  margin-right: 8px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  vertical-align: middle;
   position: relative;
-  flex-shrink: 0;
+  padding-left: 28px;
+  margin-left: -1.5em;
+  cursor: default;
+  outline: none;
 }
 
-.task-checkbox:hover {
+/* Square checkbox rendered via ::before pseudo-element */
+#editor-root li[role="checkbox"]::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0.3em;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--vscode-checkbox-border, #6b6b6b);
+  border-radius: 3px;
+  background-color: var(--vscode-checkbox-background, transparent);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+#editor-root li[role="checkbox"]:hover::before {
   border-color: var(--vscode-focusBorder, #007acc);
-  background-color: rgba(0, 122, 204, 0.1);
 }
 
-/* Checked state */
-.task-checkbox.checked {
-  background-color: var(--vscode-checkbox-background, #007acc);
-  border-color: var(--vscode-checkbox-background, #007acc);
+/* Checked state: filled background */
+#editor-root li[role="checkbox"][aria-checked="true"]::before {
+  background-color: var(
+    --vscode-checkbox-selectBackground,
+    var(--vscode-button-background, #007acc)
+  );
+  border-color: var(
+    --vscode-checkbox-selectBackground,
+    var(--vscode-button-background, #007acc)
+  );
 }
 
-.task-checkbox.checked::after {
-  content: '✓';
-  color: var(--vscode-checkbox-foreground, #fff);
-  font-size: 10px;
-  font-weight: bold;
+/* Checkmark rendered via rotated border pseudo-element (CSP-safe, no inline SVG) */
+#editor-root li[role="checkbox"][aria-checked="true"]::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 0.45em;
+  width: 4px;
+  height: 8px;
+  border-right: 2px solid var(--vscode-checkbox-foreground, #ffffff);
+  border-bottom: 2px solid var(--vscode-checkbox-foreground, #ffffff);
+  transform: rotate(45deg);
+  pointer-events: none;
 }
 
-/* Strikethrough for checked items */
-#editor-root li.task-checked {
-  color: var(--vscode-disabledForeground, #6b6b6b);
+/* Completed task: fade the task title AND its nested sub-bullets uniformly.
+   Lexical's @lexical/list renders nested lists inside a SIBLING wrapper <li>
+   (see $handleIndent in LexicalList.dev.js), so CSS descendant cascade from
+   the checkbox <li> can't reach them. A JS pass (tagCompletedTaskSubtrees)
+   tags those sibling wrappers with `.task-done-subtree` after every render;
+   we match both selectors with identical styling here. */
+#editor-root li[role="checkbox"][aria-checked="true"],
+#editor-root li.task-done-subtree {
+  opacity: 0.5;
+  filter: saturate(0.6);
+}
+
+#editor-root li[role="checkbox"][aria-checked="true"] a,
+#editor-root li.task-done-subtree a {
+  pointer-events: none;
+  text-decoration: none;
+}
+
+/* Brief background pulse to confirm a block was copied via double-click */
+@keyframes md-copy-flash {
+  0% {
+    background-color: var(
+      --vscode-editor-findMatchHighlightBackground,
+      rgba(255, 213, 79, 0.6)
+    );
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+#editor-root .copy-flash {
+  animation: md-copy-flash 600ms ease-out;
+  border-radius: 3px;
+}
+
+#editor-root li[role="checkbox"]:focus-visible::before {
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 1px;
 }
 
 #editor-root hr {
-  display: none;
+  border: none;
+  height: 1px;
+  background-color: rgba(128, 128, 128, 0.3);
+  margin: 16px 0;
 }
 
 #editor-root img {
@@ -300,7 +489,7 @@ body {
   max-width: 100%;
   border-collapse: collapse;
   margin: 12px 0;
-  font-size: 13px;
+  font-size: calc(var(--size-base) * 0.92);
   line-height: 1.4;
 }
 
@@ -313,9 +502,12 @@ body {
 }
 
 .md-table-cell-header {
-  background-color: var(--vscode-editor-selectionBackground, rgba(255, 255, 255, 0.1));
+  background-color: var(
+    --vscode-editor-selectionBackground,
+    rgba(255, 255, 255, 0.1)
+  );
   font-weight: 600;
-  font-size: 12px;
+  font-size: calc(var(--size-base) * 0.85);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -357,10 +549,18 @@ body.vscode-light .md-table-row:hover {
    Lexical Text Formatting
    ======================================== */
 
-.editor-text-bold { font-weight: bold; }
-.editor-text-italic { font-style: italic; }
-.editor-text-underline { text-decoration: underline; }
-.editor-text-strikethrough { text-decoration: line-through; }
+.editor-text-bold {
+  font-weight: bold;
+}
+.editor-text-italic {
+  font-style: italic;
+}
+.editor-text-underline {
+  text-decoration: underline;
+}
+.editor-text-strikethrough {
+  text-decoration: line-through;
+}
 
 /* ========================================
    Code Block Container
@@ -372,7 +572,13 @@ body.vscode-light .md-table-row:hover {
   background-color: var(--vscode-textCodeBlock-background, rgba(0, 0, 0, 0.2));
   border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
   border-radius: 8px;
-  font-family: var(--vscode-editor-font-family, 'JetBrains Mono', 'Fira Code', Consolas, monospace);
+  font-family: var(
+    --vscode-editor-font-family,
+    "JetBrains Mono",
+    "Fira Code",
+    Consolas,
+    monospace
+  );
   font-size: 13px;
   line-height: 1.6;
   padding: 12px 16px;
@@ -389,7 +595,6 @@ body.vscode-light .md-table-row:hover {
   background: transparent !important;
 }
 
-
 /* ========================================
    Code Highlight Tokens - Enhanced Colors
    ======================================== */
@@ -399,7 +604,7 @@ body.vscode-light .md-table-row:hover {
 .code-highlight-prolog,
 .code-highlight-doctype,
 .code-highlight-cdata {
-  color: #6A9955;
+  color: #6a9955;
   font-style: italic;
 }
 
@@ -411,14 +616,14 @@ body.vscode-light .md-table-row:hover {
 /* Keywords - Blue (import, export, const, let, if, else, return) */
 .code-highlight-keyword,
 .code-highlight-atrule {
-  color: #C586C0;
+  color: #c586c0;
 }
 
 /* Strings - Orange/Brown */
 .code-highlight-string,
 .code-highlight-char,
 .code-highlight-selector {
-  color: #CE9178;
+  color: #ce9178;
 }
 
 /* Numbers & Booleans - Light green */
@@ -426,73 +631,73 @@ body.vscode-light .md-table-row:hover {
 .code-highlight-boolean,
 .code-highlight-constant,
 .code-highlight-symbol {
-  color: #B5CEA8;
+  color: #b5cea8;
 }
 
 /* Functions - Yellow */
 .code-highlight-function {
-  color: #DCDCAA;
+  color: #dcdcaa;
 }
 
 /* Classes & Types - Cyan/Teal */
 .code-highlight-class,
 .code-highlight-class-name {
-  color: #4EC9B0;
+  color: #4ec9b0;
 }
 
 /* Variables - Light blue */
 .code-highlight-variable {
-  color: #9CDCFE;
+  color: #9cdcfe;
 }
 
 /* Properties & Attributes - Light blue */
 .code-highlight-property,
 .code-highlight-attr {
-  color: #9CDCFE;
+  color: #9cdcfe;
 }
 
 /* Operators - Light gray */
 .code-highlight-operator {
-  color: #D4D4D4;
+  color: #d4d4d4;
 }
 
 /* Built-ins & Tags - Blue */
 .code-highlight-builtin,
 .code-highlight-tag {
-  color: #569CD6;
+  color: #569cd6;
 }
 
 /* Regex - Red */
 .code-highlight-regex {
-  color: #D16969;
+  color: #d16969;
 }
 
 /* Important - Orange */
 .code-highlight-important {
-  color: #D7BA7D;
+  color: #d7ba7d;
   font-weight: bold;
 }
 
 /* URLs & Entities - Bright blue, underline */
 .code-highlight-url,
 .code-highlight-entity {
-  color: #3794FF;
+  color: #3794ff;
   text-decoration: underline;
 }
 
 /* Namespace - Teal */
 .code-highlight-namespace {
-  color: #4EC9B0;
+  color: #4ec9b0;
 }
 
 /* Inserted - Green (Git diff) */
 .code-highlight-inserted {
-  color: #89D185;
+  color: #89d185;
 }
 
 /* Deleted - Red (Git diff) */
 .code-highlight-deleted {
-  color: #F14C4C;
+  color: #f14c4c;
   text-decoration: line-through;
 }
 
@@ -502,7 +707,10 @@ body.vscode-light .md-table-row:hover {
 
 @media (prefers-color-scheme: light) {
   .editor-code-block {
-    background-color: var(--vscode-textCodeBlock-background, rgba(0, 0, 0, 0.05));
+    background-color: var(
+      --vscode-textCodeBlock-background,
+      rgba(0, 0, 0, 0.05)
+    );
     border-color: var(--vscode-widget-border, rgba(0, 0, 0, 0.1));
   }
 }
@@ -513,15 +721,138 @@ body.vscode-light .editor-code-block {
   border-color: #e0e0e0;
 }
 
-body.vscode-light .code-highlight-comment { color: #008000; }
-body.vscode-light .code-highlight-keyword { color: #0000FF; }
-body.vscode-light .code-highlight-string { color: #A31515; }
-body.vscode-light .code-highlight-number { color: #098658; }
-body.vscode-light .code-highlight-function { color: #795E26; }
-body.vscode-light .code-highlight-class-name { color: #267F99; }
-body.vscode-light .code-highlight-variable { color: #001080; }
-body.vscode-light .code-highlight-property { color: #001080; }
-body.vscode-light .code-highlight-builtin { color: #0000FF; }
-body.vscode-light .code-highlight-tag { color: #800000; }
-body.vscode-light .code-highlight-punctuation { color: #000000; }
-body.vscode-light .code-highlight-operator { color: #000000; }
+body.vscode-light .code-highlight-comment {
+  color: #008000;
+}
+body.vscode-light .code-highlight-keyword {
+  color: #0000ff;
+}
+body.vscode-light .code-highlight-string {
+  color: #a31515;
+}
+body.vscode-light .code-highlight-number {
+  color: #098658;
+}
+body.vscode-light .code-highlight-function {
+  color: #795e26;
+}
+body.vscode-light .code-highlight-class-name {
+  color: #267f99;
+}
+body.vscode-light .code-highlight-variable {
+  color: #001080;
+}
+body.vscode-light .code-highlight-property {
+  color: #001080;
+}
+body.vscode-light .code-highlight-builtin {
+  color: #0000ff;
+}
+body.vscode-light .code-highlight-tag {
+  color: #800000;
+}
+body.vscode-light .code-highlight-punctuation {
+  color: #000000;
+}
+body.vscode-light .code-highlight-operator {
+  color: #000000;
+}
+
+/* ========================================
+   Search Bar (in-preview Cmd/Ctrl+F)
+   ======================================== */
+
+.search-bar {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background-color: var(--vscode-editorWidget-background, #252526);
+  border: 1px solid var(--vscode-editorWidget-border, #454545);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  font-size: 12px;
+}
+
+.search-bar .search-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 4px 6px;
+  background-color: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, #cccccc);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  outline: none;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.search-bar .search-input:focus {
+  border-color: var(--vscode-focusBorder, #007acc);
+}
+
+.search-bar .search-counter {
+  min-width: 40px;
+  padding: 0 4px;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+  font-size: 11px;
+  text-align: center;
+}
+
+.search-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  background: transparent;
+  color: var(--vscode-icon-foreground, #cccccc);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.search-bar button:hover {
+  background-color: var(
+    --vscode-toolbar-hoverBackground,
+    rgba(90, 93, 94, 0.31)
+  );
+}
+
+.search-bar .search-case-btn.active {
+  background-color: var(
+    --vscode-inputOption-activeBackground,
+    rgba(14, 99, 156, 0.4)
+  );
+  border-color: var(--vscode-inputOption-activeBorder, #007acc);
+  color: var(--vscode-inputOption-activeForeground, #ffffff);
+}
+
+/* CSS Custom Highlight API — painted by browser without DOM mutation.
+   Immune to Lexical's MutationObserver revert. */
+::highlight(md-preview-search) {
+  background-color: #ffd54f;
+  color: #000000;
+}
+
+::highlight(md-preview-search-current) {
+  background-color: #ff6a00;
+  color: #ffffff;
+}
+
+body.vscode-light ::highlight(md-preview-search) {
+  background-color: #fff176;
+  color: #000000;
+}
+
+body.vscode-light ::highlight(md-preview-search-current) {
+  background-color: #ff8c00;
+  color: #ffffff;
+}
