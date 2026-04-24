@@ -1,9 +1,27 @@
-import { createEditor, $getRoot, $createParagraphNode, $createTextNode, DecoratorNode, NodeKey, SerializedLexicalNode, Spread } from 'lexical';
-import { HeadingNode, QuoteNode, registerRichText } from '@lexical/rich-text';
-import { ListNode, ListItemNode } from '@lexical/list';
-import { CodeNode, CodeHighlightNode, registerCodeHighlighting } from '@lexical/code';
-import { LinkNode, AutoLinkNode, $createLinkNode } from '@lexical/link';
-import { $convertFromMarkdownString, TRANSFORMERS } from '@lexical/markdown';
+import {
+  createEditor,
+  $getRoot,
+  $createParagraphNode,
+  $createTextNode,
+  DecoratorNode,
+  NodeKey,
+  SerializedLexicalNode,
+  Spread,
+} from "lexical";
+import { HeadingNode, QuoteNode, registerRichText } from "@lexical/rich-text";
+import { ListNode, ListItemNode } from "@lexical/list";
+import {
+  CodeNode,
+  CodeHighlightNode,
+  registerCodeHighlighting,
+} from "@lexical/code";
+import { LinkNode, AutoLinkNode, $createLinkNode } from "@lexical/link";
+import {
+  $convertFromMarkdownString,
+  TRANSFORMERS,
+  CHECK_LIST,
+  ElementTransformer,
+} from "@lexical/markdown";
 import {
   TableNode,
   TableRowNode,
@@ -11,8 +29,14 @@ import {
   $createTableNode,
   $createTableRowNode,
   $createTableCellNode,
-  TableCellHeaderStates
-} from '@lexical/table';
+  TableCellHeaderStates,
+} from "@lexical/table";
+import {
+  extractCheckboxLines,
+  setupCheckboxClickHandler,
+  tagCompletedTaskSubtrees,
+} from "./checkboxes";
+import { initSearch, refreshSearch } from "./search";
 
 declare function acquireVsCodeApi(): {
   postMessage(message: unknown): void;
@@ -32,7 +56,7 @@ let updateDebounceTimer: number | undefined;
 let pendingContent: string | null = null;
 
 // Set up message listener IMMEDIATELY to catch early messages
-window.addEventListener('message', (event) => {
+window.addEventListener("message", (event) => {
   const message = event.data;
 
   if (!isInitialized) {
@@ -47,7 +71,7 @@ window.addEventListener('message', (event) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function processMessage(message: any) {
   switch (message.type) {
-    case 'update':
+    case "update":
       // Debounce updates on webview side as well (belt and suspenders)
       pendingContent = message.content;
       if (updateDebounceTimer) {
@@ -59,6 +83,14 @@ function processMessage(message: any) {
           pendingContent = null;
         }
       }, 50); // 50ms debounce on webview side
+      break;
+    case "settings":
+      if (typeof message.fontSize === "number") {
+        document.body.style.setProperty(
+          "--preview-font-size",
+          `${message.fontSize}px`,
+        );
+      }
       break;
   }
 }
@@ -78,21 +110,23 @@ type SerializedHorizontalRuleNode = Spread<{}, SerializedLexicalNode>;
 
 class HorizontalRuleNode extends DecoratorNode<null> {
   static getType(): string {
-    return 'horizontalrule';
+    return "horizontalrule";
   }
 
   static clone(node: HorizontalRuleNode): HorizontalRuleNode {
     return new HorizontalRuleNode(node.__key);
   }
 
-  static importJSON(_serializedNode: SerializedHorizontalRuleNode): HorizontalRuleNode {
+  static importJSON(
+    _serializedNode: SerializedHorizontalRuleNode,
+  ): HorizontalRuleNode {
     return $createHorizontalRuleNode();
   }
 
   exportJSON(): SerializedHorizontalRuleNode {
     return {
-      type: 'horizontalrule',
-      version: 1
+      type: "horizontalrule",
+      version: 1,
     };
   }
 
@@ -101,7 +135,7 @@ class HorizontalRuleNode extends DecoratorNode<null> {
   }
 
   createDOM(): HTMLElement {
-    return document.createElement('hr');
+    return document.createElement("hr");
   }
 
   updateDOM(): boolean {
@@ -117,54 +151,82 @@ function $createHorizontalRuleNode(): HorizontalRuleNode {
   return new HorizontalRuleNode();
 }
 
+const HR_TRANSFORMER: ElementTransformer = {
+  type: "element",
+  dependencies: [HorizontalRuleNode],
+  regExp: /^(---|\*\*\*|___)\s?$/,
+  replace: (parentNode, _children, _match, isImport) => {
+    const line = $createHorizontalRuleNode();
+    if (isImport || parentNode.getNextSibling() != null) {
+      parentNode.replace(line);
+    } else {
+      parentNode.insertBefore(line);
+    }
+    line.selectNext();
+  },
+  export: (node) => (node instanceof HorizontalRuleNode ? "---" : null),
+};
+
+const MARKDOWN_TRANSFORMERS = [HR_TRANSFORMER, CHECK_LIST, ...TRANSFORMERS];
+
 // Lexical theme with VSCode CSS variable mapping
 const theme = {
-  code: 'editor-code-block',
+  code: "editor-code-block",
   codeHighlight: {
-    atrule: 'code-highlight-atrule',
-    attr: 'code-highlight-attr',
-    boolean: 'code-highlight-boolean',
-    builtin: 'code-highlight-builtin',
-    cdata: 'code-highlight-cdata',
-    char: 'code-highlight-char',
-    class: 'code-highlight-class',
-    'class-name': 'code-highlight-class-name',
-    comment: 'code-highlight-comment',
-    constant: 'code-highlight-constant',
-    deleted: 'code-highlight-deleted',
-    doctype: 'code-highlight-doctype',
-    entity: 'code-highlight-entity',
-    function: 'code-highlight-function',
-    important: 'code-highlight-important',
-    inserted: 'code-highlight-inserted',
-    keyword: 'code-highlight-keyword',
-    namespace: 'code-highlight-namespace',
-    number: 'code-highlight-number',
-    operator: 'code-highlight-operator',
-    prolog: 'code-highlight-prolog',
-    property: 'code-highlight-property',
-    punctuation: 'code-highlight-punctuation',
-    regex: 'code-highlight-regex',
-    selector: 'code-highlight-selector',
-    string: 'code-highlight-string',
-    symbol: 'code-highlight-symbol',
-    tag: 'code-highlight-tag',
-    url: 'code-highlight-url',
-    variable: 'code-highlight-variable',
+    atrule: "code-highlight-atrule",
+    attr: "code-highlight-attr",
+    boolean: "code-highlight-boolean",
+    builtin: "code-highlight-builtin",
+    cdata: "code-highlight-cdata",
+    char: "code-highlight-char",
+    class: "code-highlight-class",
+    "class-name": "code-highlight-class-name",
+    comment: "code-highlight-comment",
+    constant: "code-highlight-constant",
+    deleted: "code-highlight-deleted",
+    doctype: "code-highlight-doctype",
+    entity: "code-highlight-entity",
+    function: "code-highlight-function",
+    important: "code-highlight-important",
+    inserted: "code-highlight-inserted",
+    keyword: "code-highlight-keyword",
+    namespace: "code-highlight-namespace",
+    number: "code-highlight-number",
+    operator: "code-highlight-operator",
+    prolog: "code-highlight-prolog",
+    property: "code-highlight-property",
+    punctuation: "code-highlight-punctuation",
+    regex: "code-highlight-regex",
+    selector: "code-highlight-selector",
+    string: "code-highlight-string",
+    symbol: "code-highlight-symbol",
+    tag: "code-highlight-tag",
+    url: "code-highlight-url",
+    variable: "code-highlight-variable",
   },
-  table: 'md-table',
-  tableCell: 'md-table-cell',
-  tableCellHeader: 'md-table-cell-header',
-  tableRow: 'md-table-row'
+  table: "md-table",
+  tableCell: "md-table-cell",
+  tableCellHeader: "md-table-cell-header",
+  tableRow: "md-table-row",
+  list: {
+    listitem: "editor-listitem",
+    listitemChecked: "editor-listitem-checked",
+    listitemUnchecked: "editor-listitem-unchecked",
+    nested: {
+      listitem: "editor-listitem-nested",
+    },
+    ol: "editor-list-ol",
+    ul: "editor-list-ul",
+  },
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const editorConfig: any = {
-  namespace: 'MarkdownPreview',
+  namespace: "MarkdownPreview",
   theme,
   editable: false,
   onError: (error: Error) => {
-    console.error('Lexical error:', error);
+    console.error("Lexical error:", error);
   },
   nodes: [
     HeadingNode,
@@ -178,22 +240,28 @@ const editorConfig: any = {
     HorizontalRuleNode,
     TableNode,
     TableRowNode,
-    TableCellNode
-  ]
+    TableCellNode,
+  ],
 };
 
 let editor: ReturnType<typeof createEditor> | null = null;
 
 // Parse filepath link to extract path and line numbers
 // Supports: path.ts, path.ts#L42, path.ts#L42-L51
-function parseFileLink(href: string): { filePath: string; startLine?: number; endLine?: number } | null {
+function parseFileLink(
+  href: string,
+): { filePath: string; startLine?: number; endLine?: number } | null {
   // Skip external URLs
-  if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:')) {
+  if (
+    href.startsWith("http://") ||
+    href.startsWith("https://") ||
+    href.startsWith("mailto:")
+  ) {
     return null;
   }
 
   // Parse line numbers from hash: #L42 or #L42-L51
-  const hashIndex = href.indexOf('#');
+  const hashIndex = href.indexOf("#");
   let filePath = href;
   let startLine: number | undefined;
   let endLine: number | undefined;
@@ -213,7 +281,7 @@ function parseFileLink(href: string): { filePath: string; startLine?: number; en
   }
 
   // Validate file path (should look like a relative or file path)
-  if (!filePath || filePath.startsWith('#')) {
+  if (!filePath || filePath.startsWith("#")) {
     return null;
   }
 
@@ -221,14 +289,14 @@ function parseFileLink(href: string): { filePath: string; startLine?: number; en
 }
 
 function setupLinkClickHandler(rootElement: HTMLElement) {
-  rootElement.addEventListener('click', (event) => {
+  rootElement.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
 
     // Find closest anchor element
-    const anchor = target.closest('a');
+    const anchor = target.closest("a");
     if (!anchor) return;
 
-    const href = anchor.getAttribute('href');
+    const href = anchor.getAttribute("href");
     if (!href) return;
 
     const parsed = parseFileLink(href);
@@ -237,76 +305,154 @@ function setupLinkClickHandler(rootElement: HTMLElement) {
       event.stopPropagation();
 
       vscode.postMessage({
-        type: 'openFile',
+        type: "openFile",
         filePath: parsed.filePath,
         startLine: parsed.startLine,
-        endLine: parsed.endLine
+        endLine: parsed.endLine,
       });
     }
   });
 }
 
-// Double-click to switch to text editor for editing
-function setupDoubleClickToEdit(rootElement: HTMLElement) {
-  rootElement.addEventListener('dblclick', (event) => {
+// Double-click to copy the whole block. We deliberately ignore the browser's
+// native word-selection on dblclick — the user's intent is "copy this block
+// quickly", not "copy this single word". Manual word copy still works via
+// click-drag + Cmd+C.
+function setupDoubleClickToCopy(rootElement: HTMLElement) {
+  rootElement.addEventListener("dblclick", (event) => {
     const target = event.target as HTMLElement;
 
-    // Skip if double-click on link (already has its own handler)
-    if (target.closest('a')) return;
+    // Skip links — they have their own click handler
+    if (target.closest("a")) return;
+    // Skip task checkboxes — clicking the box toggles, not copy
+    const taskLi = target.closest('li[role="checkbox"]') as HTMLElement | null;
+    if (taskLi) {
+      const rect = taskLi.getBoundingClientRect();
+      if (event.clientX - rect.left <= 24) return;
+    }
 
-    // Send message to switch to text editor
-    vscode.postMessage({ type: 'switchToTextEditor' });
+    const block = target.closest(
+      "p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, td, th",
+    ) as HTMLElement | null;
+    if (!block) return;
+
+    // For code blocks, preserve internal indentation — only strip a single
+    // trailing newline. Otherwise trim freely.
+    const raw = block.textContent ?? "";
+    const text = block.tagName === "PRE" ? raw.replace(/\n$/, "") : raw.trim();
+    if (!text) return;
+
+    event.preventDefault();
+
+    // Clear the browser's native word-selection so the user gets a clean
+    // visual signal: the block flashed = the block was copied, no half-selected
+    // word lingering on screen.
+    window.getSelection()?.removeAllRanges();
+
+    flashCopiedBlock(block);
+    vscode.postMessage({ type: "copyText", text });
   });
 }
 
+// Must match the @keyframes md-copy-flash duration in styles.css
+const COPY_FLASH_DURATION_MS = 600;
+
+function flashCopiedBlock(block: HTMLElement): void {
+  block.classList.remove("copy-flash");
+  // Force reflow so re-adding the class restarts the animation even on
+  // back-to-back double-clicks on the same block.
+  void block.offsetWidth;
+  block.classList.add("copy-flash");
+  window.setTimeout(
+    () => block.classList.remove("copy-flash"),
+    COPY_FLASH_DURATION_MS,
+  );
+}
+
+// Treat events targeting an editable element (search input, etc.) as belonging
+// to that field — don't hijack them for global webview shortcuts.
+function isEditableTarget(event: KeyboardEvent): boolean {
+  const target = event.target as HTMLElement | null;
+  if (!target) return false;
+  return !!target.closest('input, textarea, [contenteditable="true"]');
+}
+
+// Forward Cmd/Ctrl + Backspace to extension so users can delete the file
+// (VSCode webview iframe captures keyboard events — native shortcut never reaches workbench)
+function setupDeleteFileShortcut() {
+  window.addEventListener("keydown", (event) => {
+    if (isEditableTarget(event)) return;
+
+    const isDeleteShortcut =
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey &&
+      (event.key === "Backspace" || event.key === "Delete");
+
+    if (!isDeleteShortcut) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    vscode.postMessage({ type: "deleteFile" });
+  });
+}
+
+// Forward Cmd/Ctrl + Shift + L to host so the togglePreview command fires when
+// the webview has focus (otherwise the iframe swallows the keystroke).
+function setupTogglePreviewShortcut() {
+  window.addEventListener("keydown", (event) => {
+    if (isEditableTarget(event)) return;
+
+    const isToggle =
+      (event.metaKey || event.ctrlKey) &&
+      event.shiftKey &&
+      !event.altKey &&
+      (event.key === "l" || event.key === "L");
+
+    if (!isToggle) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    vscode.postMessage({ type: "togglePreview" });
+  });
+}
+
+let handlersAttachedTo: HTMLElement | null = null;
+let currentCheckboxLines: number[] = [];
+
 function initEditor() {
-  const rootElement = document.getElementById('editor-root');
+  const rootElement = document.getElementById("editor-root");
   if (!rootElement) {
-    console.error('[Webview] Root element not found');
+    console.error("[Webview] Root element not found");
     return;
   }
 
-  // Check if editor already exists and is connected to this root
-  if (editor) {
-    const currentRoot = editor.getRootElement();
-    if (currentRoot === rootElement) {
-      return;
-    }
+  // Idempotent: if editor already bound to this root, bail.
+  if (editor && editor.getRootElement() === rootElement) {
+    return;
   }
 
   editor = createEditor(editorConfig);
   editor.setRootElement(rootElement);
   registerRichText(editor);
-  // Register Prism-based code highlighting (uses theme classes)
   registerCodeHighlighting(editor);
 
-  // Setup click handler for file links
-  setupLinkClickHandler(rootElement);
-
-  // Setup double-click to edit
-  setupDoubleClickToEdit(rootElement);
-}
-
-// Preprocess markdown: remove horizontal rules and convert checkboxes to Unicode
-function preprocessMarkdown(markdown: string): string {
-  return markdown
-    .split('\n')
-    .filter(line => !/^-{3,}$/.test(line.trim()))
-    .map(line => {
-      // Convert task list checkboxes to Unicode symbols
-      return line
-        .replace(/^(\s*)-\s*\[\s*\]\s+/, '$1- ☐ ')
-        .replace(/^(\s*)-\s*\[[xX]\]\s+/, '$1- ✓ ');
-    })
-    .join('\n');
+  // Guard: only attach one-shot listeners per root element.
+  if (handlersAttachedTo !== rootElement) {
+    setupLinkClickHandler(rootElement);
+    setupDoubleClickToCopy(rootElement);
+    setupCheckboxClickHandler(rootElement, vscode, () => currentCheckboxLines);
+    initSearch(rootElement);
+    handlersAttachedTo = rootElement;
+  }
 }
 
 // Parse markdown table row
 function parseTableRow(line: string): string[] {
   return line
-    .split('|')
+    .split("|")
     .slice(1, -1) // Remove empty first/last from |col|col|
-    .map(cell => cell.trim());
+    .map((cell) => cell.trim());
 }
 
 // Check if line is a table separator
@@ -318,7 +464,7 @@ function isTableSeparator(line: string): boolean {
 function isFilePath(text: string): boolean {
   const trimmed = text.trim();
   // Check for path-like patterns: contains / or \ and has file extension
-  const hasPathSeparator = trimmed.includes('/') || trimmed.includes('\\');
+  const hasPathSeparator = trimmed.includes("/") || trimmed.includes("\\");
   const hasExtension = /\.\w{1,10}$/.test(trimmed);
   // Also match paths starting with ./ or ../
   const isRelativePath = /^\.\.?\//.test(trimmed);
@@ -328,7 +474,10 @@ function isFilePath(text: string): boolean {
 
 // Parse cell text and create nodes with links
 // Supports: markdown link format [text](url) AND plain file paths
-function appendCellContent(paragraph: ReturnType<typeof $createParagraphNode>, cellText: string): void {
+function appendCellContent(
+  paragraph: ReturnType<typeof $createParagraphNode>,
+  cellText: string,
+): void {
   // First try markdown link format
   const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
   let lastIndex = 0;
@@ -373,7 +522,7 @@ function appendCellContent(paragraph: ReturnType<typeof $createParagraphNode>, c
   if (cellText.length > 0) {
     paragraph.append($createTextNode(cellText));
   } else {
-    paragraph.append($createTextNode(''));
+    paragraph.append($createTextNode(""));
   }
 }
 
@@ -394,7 +543,7 @@ function createLexicalTable(tableLines: string[]): TableNode | null {
 
   // Create header row
   const headerRowNode = $createTableRowNode();
-  headerCells.forEach(cellText => {
+  headerCells.forEach((cellText) => {
     const cellNode = $createTableCellNode(TableCellHeaderStates.ROW);
     const paragraph = $createParagraphNode();
     appendCellContent(paragraph, cellText);
@@ -404,14 +553,14 @@ function createLexicalTable(tableLines: string[]): TableNode | null {
   tableNode.append(headerRowNode);
 
   // Create data rows
-  dataLines.forEach(line => {
-    if (line.trim() && line.includes('|')) {
+  dataLines.forEach((line) => {
+    if (line.trim() && line.includes("|")) {
       const cells = parseTableRow(line);
       const rowNode = $createTableRowNode();
 
       // Ensure we have same number of cells as header
       for (let i = 0; i < headerCells.length; i++) {
-        const cellText = cells[i] || '';
+        const cellText = cells[i] || "";
         const cellNode = $createTableCellNode(TableCellHeaderStates.NO_STATUS);
         const paragraph = $createParagraphNode();
         appendCellContent(paragraph, cellText);
@@ -428,12 +577,16 @@ function createLexicalTable(tableLines: string[]): TableNode | null {
 // Check if text looks like a table row
 function isTableRowContent(text: string): boolean {
   const trimmed = text.trim();
-  return trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.includes('|');
+  return (
+    trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.includes("|")
+  );
 }
 
 // Extract table from text content that may contain multiple lines
-function extractTableFromContent(content: string): { tableLines: string[]; beforeText: string; afterText: string } | null {
-  const lines = content.split('\n');
+function extractTableFromContent(
+  content: string,
+): { tableLines: string[]; beforeText: string; afterText: string } | null {
+  const lines = content.split("\n");
   let tableStart = -1;
   let tableEnd = -1;
 
@@ -445,7 +598,11 @@ function extractTableFromContent(content: string): { tableLines: string[]; befor
         tableStart = i;
       }
       // Check if next line is separator (for valid table)
-      if (tableStart === i && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      if (
+        tableStart === i &&
+        i + 1 < lines.length &&
+        isTableSeparator(lines[i + 1])
+      ) {
         // Found valid table header + separator
         tableEnd = i + 1;
         // Continue to find all data rows
@@ -469,8 +626,11 @@ function extractTableFromContent(content: string): { tableLines: string[]; befor
   }
 
   const tableLines = lines.slice(tableStart, tableEnd + 1);
-  const beforeText = lines.slice(0, tableStart).join('\n').trim();
-  const afterText = lines.slice(tableEnd + 1).join('\n').trim();
+  const beforeText = lines.slice(0, tableStart).join("\n").trim();
+  const afterText = lines
+    .slice(tableEnd + 1)
+    .join("\n")
+    .trim();
 
   // Validate table
   if (tableLines.length >= 2 && isTableSeparator(tableLines[1])) {
@@ -498,7 +658,7 @@ function findAndReplaceTableParagraphs(): void {
       const content = child.getTextContent();
 
       // Case 1: Single paragraph contains entire table (merged lines)
-      if (child.getType() === 'paragraph') {
+      if (child.getType() === "paragraph") {
         const extracted = extractTableFromContent(content);
         if (extracted) {
           const tableNode = createLexicalTable(extracted.tableLines);
@@ -534,7 +694,10 @@ function findAndReplaceTableParagraphs(): void {
             const nextChild = children[j];
             const nextContent = nextChild.getTextContent();
 
-            if (nextChild.getType() === 'paragraph' && isTableRowContent(nextContent)) {
+            if (
+              nextChild.getType() === "paragraph" &&
+              isTableRowContent(nextContent)
+            ) {
               tableRows.push(nextContent);
               j++;
             } else {
@@ -564,7 +727,9 @@ function findAndReplaceTableParagraphs(): void {
   }
 
   if (iterations >= MAX_ITERATIONS) {
-    console.warn('[Webview] Table processing hit max iterations, some tables may not be rendered');
+    console.warn(
+      "[Webview] Table processing hit max iterations, some tables may not be rendered",
+    );
   }
 }
 
@@ -573,20 +738,16 @@ function processMarkdownWithTables(markdown: string): void {
   const root = $getRoot();
   root.clear();
 
-  // Remove horizontal rules
-  const cleanedMarkdown = preprocessMarkdown(markdown);
-
-  if (cleanedMarkdown.trim()) {
+  if (markdown.trim()) {
     try {
       // Convert markdown - tables will become paragraphs with pipe characters
-      $convertFromMarkdownString(cleanedMarkdown, TRANSFORMERS);
+      $convertFromMarkdownString(markdown, MARKDOWN_TRANSFORMERS);
 
       // Find and replace table paragraphs
       findAndReplaceTableParagraphs();
-
     } catch {
       const paragraph = $createParagraphNode();
-      paragraph.append($createTextNode(cleanedMarkdown));
+      paragraph.append($createTextNode(markdown));
       root.append(paragraph);
     }
   }
@@ -594,13 +755,13 @@ function processMarkdownWithTables(markdown: string): void {
   // If nothing was added, show placeholder
   if (root.getChildrenSize() === 0) {
     const paragraph = $createParagraphNode();
-    paragraph.append($createTextNode('No content'));
+    paragraph.append($createTextNode("No content"));
     root.append(paragraph);
   }
 }
 
 // Content hash tracking to prevent redundant updates
-let lastContentHash = '';
+let lastContentHash = "";
 
 // Performance threshold for very large files
 const VERY_LARGE_FILE_THRESHOLD = 100000; // chars
@@ -609,7 +770,7 @@ function simpleHash(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash;
   }
   return hash.toString();
@@ -632,42 +793,77 @@ function updateContent(markdown: string) {
 
     // Warn for very large files
     if (contentLength > VERY_LARGE_FILE_THRESHOLD) {
-      console.warn(`[Webview] Very large file (${contentLength} chars), rendering may fail`);
+      console.warn(
+        `[Webview] Very large file (${contentLength} chars), rendering may fail`,
+      );
     }
 
     try {
       const startTime = performance.now();
 
-      editor.update(() => {
-        try {
-          processMarkdownWithTables(markdown);
+      // Preserve scroll position across the re-render. Lexical rebuilds the
+      // entire editor tree which resets the scrollable ancestor's scrollTop.
+      const scrollX = window.scrollX;
+      const scrollY = window.scrollY;
 
-          // Warn if rendering took too long
-          const endTime = performance.now();
-          const duration = endTime - startTime;
-          if (duration > 1000) {
-            console.warn(`[Webview] Slow render: ${duration.toFixed(2)}ms for ${contentLength} chars`);
+      editor.update(
+        () => {
+          try {
+            processMarkdownWithTables(markdown);
+
+            const endTime = performance.now();
+            const duration = endTime - startTime;
+            if (duration > 1000) {
+              console.warn(
+                `[Webview] Slow render: ${duration.toFixed(2)}ms for ${contentLength} chars`,
+              );
+            }
+          } catch (innerError) {
+            console.error(
+              "[Webview] Error in processMarkdownWithTables:",
+              innerError,
+            );
+
+            const root = $getRoot();
+            root.clear();
+            const errorPara = $createParagraphNode();
+            errorPara.append(
+              $createTextNode(
+                `⚠️ Error rendering markdown (${contentLength} chars). File may be too large or contain unsupported syntax.\n\nError: ${innerError}`,
+              ),
+            );
+            root.append(errorPara);
           }
-        } catch (innerError) {
-          console.error('[Webview] Error in processMarkdownWithTables:', innerError);
+        },
+        {
+          discrete: true,
+        },
+      );
 
-          // Fallback: show error message
-          const root = $getRoot();
-          root.clear();
-          const errorPara = $createParagraphNode();
-          errorPara.append($createTextNode(
-            `⚠️ Error rendering markdown (${contentLength} chars). File may be too large or contain unsupported syntax.\n\nError: ${innerError}`
-          ));
-          root.append(errorPara);
-        }
-      }, {
-        discrete: true
-      });
+      // Update source-line mapping AFTER render completes. discrete:true flushes
+      // DOM synchronously, so by this point the new <li role="checkbox"> elements
+      // and the line array are in lockstep — no window where a click could read
+      // stale DOM with a fresh array (or vice versa).
+      currentCheckboxLines = extractCheckboxLines(markdown);
+
+      // Tag sibling wrappers holding checked tasks' nested content — Lexical
+      // renders nested lists as sibling <li>, so CSS cascade alone can't fade
+      // the sub-bullets. Must run after the DOM flush.
+      const rootElForTags = document.getElementById("editor-root");
+      if (rootElForTags) {
+        tagCompletedTaskSubtrees(rootElForTags);
+      }
+
+      // Restore scroll synchronously (discrete update = DOM already flushed).
+      window.scrollTo(scrollX, scrollY);
+
+      // Re-run active search against the freshly rendered content.
+      refreshSearch();
     } catch (error) {
-      console.error('[Webview] Fatal error in updateContent:', error);
+      console.error("[Webview] Fatal error in updateContent:", error);
 
       // Show error in UI
-      const rootElement = document.getElementById('editor-root');
+      const rootElement = document.getElementById("editor-root");
       if (rootElement) {
         rootElement.innerHTML = `<p style="color: red; padding: 20px;">
           ⚠️ Failed to render markdown (${contentLength} chars)<br><br>
@@ -679,61 +875,170 @@ function updateContent(markdown: string) {
   }
 }
 
-// Setup toolbar button click handlers
+// Setup toolbar: split-button with path/comment modes + comment panel
 function setupToolbarButtons() {
-  // Execute button
-  const executeBtn = document.getElementById('execute-btn');
-  if (executeBtn) {
-    executeBtn.addEventListener('click', () => {
-      const filePath = executeBtn.getAttribute('data-filepath');
-      if (filePath) {
-        vscode.postMessage({
-          type: 'executeInTerminal',
-          filePath: filePath
-        });
-      }
-    });
+  const main = document.getElementById("tb-main");
+  const arrow = document.getElementById("tb-arrow");
+  const menu = document.getElementById("tb-menu");
+  const panel = document.getElementById("tb-comment-panel");
+  const input = document.getElementById(
+    "tb-comment-input",
+  ) as HTMLTextAreaElement | null;
+  const copyBtn = document.getElementById("tb-comment-copy");
+  const label = document.querySelector("#tb-main .tb-label");
+  const kbd = document.querySelector("#tb-main .tb-kbd");
+
+  if (!main || !arrow || !menu || !panel || !input || !copyBtn) {
+    return;
   }
 
-  // Copy Prompt button
-  const copyPromptBtn = document.getElementById('copy-prompt-btn');
-  if (copyPromptBtn) {
-    copyPromptBtn.addEventListener('click', () => {
-      const filePath = copyPromptBtn.getAttribute('data-filepath');
-      if (filePath) {
-        vscode.postMessage({
-          type: 'copyPrompt',
-          filePath: filePath
-        });
-      }
-    });
+  const isMac = navigator.platform.toLowerCase().includes("mac");
+  if (kbd) {
+    kbd.textContent = isMac ? "⌘↵" : "Ctrl↵";
   }
 
-  // Review select dropdown
-  const reviewSelect = document.getElementById('review-select') as HTMLSelectElement;
-  if (reviewSelect) {
-    reviewSelect.addEventListener('change', () => {
-      const wrapper = reviewSelect.closest('.toolbar-select-wrapper');
-      const filePath = wrapper?.getAttribute('data-filepath');
-      const action = reviewSelect.value;
-
-      if (filePath && action) {
-        if (action === 'copy') {
-          vscode.postMessage({
-            type: 'copyReviewPrompt',
-            filePath: filePath
-          });
-        } else if (action === 'run') {
-          vscode.postMessage({
-            type: 'executeReview',
-            filePath: filePath
-          });
-        }
-        // Reset select to default
-        reviewSelect.selectedIndex = 0;
+  const setMode = (mode: "path" | "comment") => {
+    main.dataset.mode = mode;
+    if (mode === "path") {
+      if (label) {
+        label.textContent = "Copy path";
       }
-    });
-  }
+      main.title = `Copy relative path (${isMac ? "⌘" : "Ctrl+"}Enter)`;
+      panel.hidden = true;
+    } else {
+      if (label) {
+        label.textContent = "Comment";
+      }
+      main.title = `Open comment input (${isMac ? "⌘" : "Ctrl+"}Enter)`;
+    }
+  };
+
+  const closeMenu = () => {
+    menu.hidden = true;
+    arrow.setAttribute("aria-expanded", "false");
+  };
+
+  let mainCopiedTimer: number | null = null;
+
+  const showMainCopied = () => {
+    if (mainCopiedTimer !== null) {
+      window.clearTimeout(mainCopiedTimer);
+    }
+    if (label) {
+      label.textContent = "Copied";
+    }
+    (main as HTMLButtonElement).disabled = true;
+    mainCopiedTimer = window.setTimeout(() => {
+      const mode = (main.dataset.mode as "path" | "comment") ?? "path";
+      setMode(mode);
+      (main as HTMLButtonElement).disabled = false;
+      mainCopiedTimer = null;
+    }, 3000);
+  };
+
+  main.addEventListener("click", () => {
+    if (main.dataset.mode === "path") {
+      const path = main.dataset.filepath;
+      if (path) {
+        vscode.postMessage({ type: "copyText", text: path });
+        showMainCopied();
+      }
+    } else {
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) {
+        input.focus();
+      }
+    }
+  });
+
+  arrow.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = menu.hidden;
+    menu.hidden = !willOpen;
+    arrow.setAttribute("aria-expanded", String(willOpen));
+    if (willOpen) {
+      const first = menu.querySelector<HTMLElement>(".tb-menu-item");
+      first?.focus();
+    }
+  });
+
+  menu.addEventListener("click", (e) => {
+    const item = (e.target as HTMLElement).closest(
+      ".tb-menu-item",
+    ) as HTMLElement | null;
+    if (!item) {
+      return;
+    }
+    const action = item.dataset.action;
+    if (action === "path" || action === "comment") {
+      setMode(action);
+    }
+    closeMenu();
+  });
+
+  menu.addEventListener("keydown", (e) => {
+    const items = Array.from(
+      menu.querySelectorAll<HTMLElement>(".tb-menu-item"),
+    );
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = items[(currentIndex + 1) % items.length];
+      next?.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prev = items[(currentIndex - 1 + items.length) % items.length];
+      prev?.focus();
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      (document.activeElement as HTMLElement | null)?.click();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeMenu();
+      arrow.focus();
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (menu.hidden) {
+      return;
+    }
+    const target = e.target as Element;
+    if (!target.closest(".tb-split")) {
+      closeMenu();
+    }
+  });
+
+  copyBtn.addEventListener("click", () => {
+    const text = input.value.trim();
+    if (!text) {
+      return;
+    }
+    const path = main.dataset.filepath ?? "";
+    const combined = path ? `${text}\n\n${path}` : text;
+    vscode.postMessage({ type: "copyText", text: combined });
+    panel.hidden = true;
+    showMainCopied();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      copyBtn.click();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    const cmdKey = isMac ? e.metaKey : e.ctrlKey;
+    if (!cmdKey || e.key !== "Enter") {
+      return;
+    }
+    const target = e.target as HTMLElement;
+    if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
+      e.preventDefault();
+      main.click();
+    }
+  });
 }
 
 // Initialize when DOM is ready
@@ -744,6 +1049,8 @@ function initialize() {
 
   initEditor();
   setupToolbarButtons();
+  setupDeleteFileShortcut();
+  setupTogglePreviewShortcut();
 
   // Mark as initialized BEFORE processing queued messages
   isInitialized = true;
@@ -752,14 +1059,17 @@ function initialize() {
   processQueuedMessages();
 
   // Send ready message to extension
-  vscode.postMessage({ type: 'ready' });
+  vscode.postMessage({ type: "ready" });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   initialize();
 });
 
 // Also try to init immediately in case DOMContentLoaded already fired
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
+if (
+  document.readyState === "complete" ||
+  document.readyState === "interactive"
+) {
   initialize();
 }
